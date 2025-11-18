@@ -1,0 +1,10 @@
+venv/
+chroma_store/
+.ipynb_checkpoints/
+dataset/
+hail/
+__pycache__/
+*.jsonl
+*.db
+model/
+jd_data/

@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+PyPDF2
+scikit-learn
+requests
+rapidfuzz
+ollama
+transformers
+accelerate
+bitsandbytes
