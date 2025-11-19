@@ -8,3 +8,5 @@ __pycache__/
 *.db
 model/
 jd_data/
+test.ipynb
+skills_extractions.py
