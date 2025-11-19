@@ -39,6 +39,7 @@ except Exception:
 
 # sentence-transformers lazy load
 _SBM = None
+@st.cache_resource
 def get_sbert(model_name: str = "all-MiniLM-L6-v2"):
     global _SBM
     if _SBM is None:
@@ -253,7 +254,8 @@ def jobs_panel():
         save_jobs_to_session(jobs)
         # guarded rerun (not all streamlit builds expose experimental_rerun)
         try:
-            st.experimental_rerun()
+            # st.experimental_rerun()
+            st.rerun()
         except Exception:
             pass
     return jobs
@@ -395,7 +397,8 @@ def manual_jd_panel(enable: bool):
 
         # guarded rerun (older streamlit may not have experimental_rerun)
         try:
-            st.experimental_rerun()
+            # st.experimental_rerun()
+            st.rerun()
         except Exception:
             # nothing — session_state already updated; UI will reflect changes on next interaction or refresh
             pass
@@ -755,3 +758,4 @@ def jd_extract_and_store(jd_text: str, job_dict: dict,
 
 if __name__ == '__main__':
     main()
+
