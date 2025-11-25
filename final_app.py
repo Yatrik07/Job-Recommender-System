@@ -149,6 +149,32 @@ def get_sentence_matches(resume_text, jd_text, model, top_k=3):
             
     return matches
 
+def calculate_hybrid_match(text1, text2, ranker_model):
+    """
+    Calculates a hybrid score (0.0 - 1.0) between two texts using:
+    1. TF-IDF Cosine Similarity (Keyword-based)
+    2. SBERT Embedding Cosine Similarity (Semantic-based)
+    Returns the average of both.
+    """
+    if not text1 or not text2 or len(text1) < 10 or len(text2) < 10:
+        return 0.0
+
+    # 1. TF-IDF Score
+    try:
+        vec = CountVectorizer(stop_words='english')
+        X = vec.fit_transform([text1, text2])
+        tfidf_sim = cosine_similarity(X[0], X[1])[0][0]
+    except ValueError:
+        tfidf_sim = 0.0
+
+    # 2. Embedding Score
+    emb1 = ranker_model.encode(text1)
+    emb2 = ranker_model.encode(text2)
+    semantic_sim = cosine_similarity(emb1.reshape(1, -1), emb2.reshape(1, -1))[0][0]
+    
+    # 3. Hybrid Average
+    return (tfidf_sim + max(0.0, semantic_sim)) / 2.0
+
 def calculate_scores(resume_data, jobs_data, skill_weight=0.7):
     if not resume_data.get('skills') or not jobs_data:
         return []
@@ -156,13 +182,11 @@ def calculate_scores(resume_data, jobs_data, skill_weight=0.7):
     # 1. Embed Resume Skills
     res_skill_embeddings = ranker.encode(resume_data['skills'])
     
-    # 2. Embed Resume EXPERIENCE
+    # 2. Get Resume EXPERIENCE
     res_exp_text = resume_data.get('experience', '')
     if len(res_exp_text) < 50: 
         res_exp_text = resume_data.get('text', '')[:2000]
         
-    res_exp_embedding = ranker.encode(res_exp_text)
-    
     scored_results = []
     exp_weight = 1.0 - skill_weight
 
@@ -197,19 +221,24 @@ def calculate_scores(resume_data, jobs_data, skill_weight=0.7):
             total_reqs = len(j_set)
             match_count = total_reqs - len(missing_skills)
 
-        # --- SIGNAL 2: EXPERIENCE MATCH ---
+        # --- SIGNAL 2: EXPERIENCE MATCH (HYBRID) ---
+        # We match Resume Experience against BOTH JD Requirements and JD Responsibilities
+        
+        jd_reqs_text = job.get('requirements_text', '')
         jd_resp_text = job.get('responsibilities', '')
-        if len(jd_resp_text) < 50: 
-            jd_resp_text = job.get('text', '')[:2000]
-            
-        jd_resp_embedding = ranker.encode(jd_resp_text)
         
-        exp_score = float(cosine_similarity(
-            res_exp_embedding.reshape(1, -1), 
-            jd_resp_embedding.reshape(1, -1)
-        )[0][0])
-        exp_score = max(0.0, exp_score)
+        # Fallback if segmentation failed
+        if len(jd_reqs_text) < 50: jd_reqs_text = job.get('text', '')[:1500]
+        if len(jd_resp_text) < 50: jd_resp_text = job.get('text', '')[:1500]
+
+        # Calculate Hybrid Matches
+        match_reqs = calculate_hybrid_match(res_exp_text, jd_reqs_text, ranker)
+        match_resp = calculate_hybrid_match(res_exp_text, jd_resp_text, ranker)
         
+        # Average them for the final Experience Score
+        exp_score = (match_reqs + match_resp) / 2.0
+        
+        # Context Extraction
         common_themes = extract_common_context(res_exp_text, jd_resp_text)
         
         # Explainability: Find sentence matches
